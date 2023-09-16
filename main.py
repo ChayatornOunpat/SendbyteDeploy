@@ -1,7 +1,8 @@
 import os
 import secrets
 import asyncio
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import aiofiles
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -91,14 +92,17 @@ async def download(fn: int):
         raise HTTPException(status_code=404, detail="File not found")
 
 @app.post("/send/submitfile")
-async def upload(file: UploadFile = File(...)):
+async def upload(request: Request):
     while True:
         name = secrets.randbelow(999999)
         if name not in time.keys():
             filename = name
-            with open(f'./files/{filename}_file.zip', 'wb') as f:
-                contents = await file.read()
-                f.write(contents)
+            try:
+                async with aiofiles.open(f'./files/{filename}_file.zip', 'wb') as f:
+                    async for chunk in request.stream():
+                        await f.write(chunk)
+            except Exception:
+                raise HTTPException(status_code=500, detail="Error uploading file")
             time[name] = 10
 
             return {"code": filename}
